@@ -76,15 +76,15 @@ int main() {
         int value = cv::getTrackbarPos("value", "control");
         int saturation = cv::getTrackbarPos("saturation", "control");
         int contrcat = cv::getTrackbarPos("contract","control");
-//        int hue = cv::getTrackbarPos("hue","control");
+        int hue = cv::getTrackbarPos("hue","control");
         img = origin_img.clone();
         SetValue(img,value);
         SetSaturation(img, saturation);
-//        SetHue(img,hue);
+        SetHue(img,hue);
         SetContract(img,contrcat);
 
         cv::imshow("changed", img);
-        if(cv::waitKey(10) == 'z'){
+        if(cv::waitKey(1) == 'q'){
             break;
         }
 
