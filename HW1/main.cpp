@@ -65,8 +65,9 @@ int main() {
 
     cv::Mat img = origin_img.clone();
 
-    cv::namedWindow("control",cv::WINDOW_AUTOSIZE);
-    cv::namedWindow("changed", cv::WINDOW_AUTOSIZE);
+    cv::namedWindow("control");
+    cv::namedWindow("changed");
+    cv::resizeWindow("control",cv::Size(1000,200));
     int mid = 50;
     cv::createTrackbar("value","control", &mid,100);
     cv::createTrackbar("saturation","control", &mid,100);
