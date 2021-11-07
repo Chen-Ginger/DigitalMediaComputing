@@ -31,23 +31,14 @@ void SetContract(cv::Mat frame, int degree){
     degree -= 50;
     degree *= 2;
     double ratio = degree / 100.0;
-    std::vector<double> ave(3);
-    for(int i = 0; i < frame.rows; i++){
-        for(int j = 0; j < frame.cols; j++){
-            for(int k = 0; k < 3; k++){
-                ave[k] += int(frame.at<cv::Vec3b>(i,j)[k]);
-            }
-        }
-    }
-    for(int i = 0; i < 3; i++){
-        ave[i] /= (frame.rows*frame.cols);
-//        std::cout<<ave[i]<<std::endl;
-    }
+
+    cv::Scalar mean  = cv::mean(frame);
+
     for(int i = 0; i < frame.rows; i++){
         for(int j = 0; j < frame.cols; j++){
             for(int k = 0; k < 3; k++){
                 frame.at<cv::Vec3b>(i,j)[k] = cv::saturate_cast<uchar>(
-                        frame.at<cv::Vec3b>(i,j)[k]+int(ratio*(frame.at<cv::Vec3b>(i,j)[k]-ave[k])));
+                        frame.at<cv::Vec3b>(i,j)[k]+int(ratio*(frame.at<cv::Vec3b>(i,j)[k]-mean[k])));
             }
         }
     }
@@ -73,7 +64,9 @@ int main() {
     cv::Mat origin_img = cv::imread(path);
 
     cv::Mat img = origin_img.clone();
+
     cv::namedWindow("control",cv::WINDOW_AUTOSIZE);
+    cv::namedWindow("changed", cv::WINDOW_AUTOSIZE);
     int mid = 50;
     cv::createTrackbar("value","control", &mid,100);
     cv::createTrackbar("saturation","control", &mid,100);
@@ -83,14 +76,15 @@ int main() {
         int value = cv::getTrackbarPos("value", "control");
         int saturation = cv::getTrackbarPos("saturation", "control");
         int contrcat = cv::getTrackbarPos("contract","control");
-        int hue = cv::getTrackbarPos("hue","control");
+//        int hue = cv::getTrackbarPos("hue","control");
         img = origin_img.clone();
         SetValue(img,value);
         SetSaturation(img, saturation);
-        SetHue(img,hue);
+//        SetHue(img,hue);
         SetContract(img,contrcat);
-        cv::imshow("value_changed", img);
-        if(cv::waitKey(1) == 'z'){
+
+        cv::imshow("changed", img);
+        if(cv::waitKey(10) == 'z'){
             break;
         }
 
