@@ -47,9 +47,9 @@ int main() {
     cv::namedWindow("MedianFilter",cv::WINDOW_NORMAL);
     cv::resizeWindow("MedianFilter",cv::Size(frame.rows, frame.cols));
     cv::namedWindow("GuassianFilter",cv::WINDOW_NORMAL);
-    cv::resizeWindow("GuassianFilter",cv::Size(frame.rows, frame.cols));
-    cv::namedWindow("BilateralFilter",cv::WINDOW_NORMAL);
-    cv::resizeWindow("BilateralFilter",cv::Size(frame.rows, frame.cols));
+    cv::resizeWindow("GuassianFilter",cv::Size(frame.rows, frame.cols+50));
+    cv::namedWindow("BilateralFilter",cv::WINDOW_GUI_NORMAL);
+    cv::resizeWindow("BilateralFilter",cv::Size(frame.rows, frame.cols+100));
     int Kernelsizeinit = 1;
     cv::createTrackbar("KernelSize", "BoxFilter",&Kernelsizeinit, 100);
     cv::createTrackbar("KernelSize", "MedianFilter",&Kernelsizeinit, 100);
