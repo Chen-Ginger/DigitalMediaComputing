@@ -72,6 +72,15 @@ void MedianFilter(cv::Mat frame){
     }
 }
 
+void MedianFilterNaive(cv::Mat frame){
+    cv::namedWindow("MedianFilter_Naive",cv::WINDOW_NORMAL);
+    cv::resizeWindow("MedianFilter_Naive",cv::Size(frame.rows, frame.cols));
+
+
+
+}
+
+
 void GuassianFilter(cv::Mat frame){
     cv::namedWindow("GuassianFilter",cv::WINDOW_NORMAL);
     cv::resizeWindow("GuassianFilter",cv::Size(frame.rows, frame.cols+50));
