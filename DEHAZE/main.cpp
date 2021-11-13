@@ -60,8 +60,8 @@ void DeHaze(cv::Mat frame,cv::Mat t, cv::Mat &changed, int A ){
     cv::split(I,divI);
     for(int i = 0; i < T.rows; i++){
         for(int j = 0; j < T.cols; j++){
-            if(T.at<float>(i,j) <= 0.2){
-                T.at<float>(i,j) = 0.2;
+            if(T.at<float>(i,j) <= 0.4){
+                T.at<float>(i,j) = 0.4;
             }
         }
     }
@@ -112,11 +112,11 @@ int main() {
     cv::Mat frame = origin_img.clone();
     cv::Mat gray;
     cv::cvtColor(frame,gray,cv::COLOR_BGR2GRAY);
-    for(int i = 0; i < gray.rows;i++){
-        for(int j = 0; j < gray.cols; j++){
-            gray.at<uchar>(i,j) = 255 - gray.at<uchar>(i,j);
-        }
-    }
+//    for(int i = 0; i < gray.rows;i++){
+//        for(int j = 0; j < gray.cols; j++){
+//            gray.at<uchar>(i,j) = 255 - gray.at<uchar>(i,j);
+//        }
+//    }
 //    cv::imshow("gray",gray);
 //    cv::waitKey(0);
     cv::Mat dark_channel(frame.size(),CV_8UC1,cv::Scalar(0));
