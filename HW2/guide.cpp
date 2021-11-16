@@ -6,7 +6,7 @@
 
 using namespace std;
 using namespace cv;
-bool my_guidedFilter_oneChannel(Mat &srcImg, Mat &guideImg, Mat &dstImg, const int rad = 9, const double eps = 0.01)
+bool my_guidedFilter_oneChannel(Mat &srcImg, Mat &guideImg, Mat &dstImg,  int rad = 9,  double eps = 0.01)
 {
 
 
@@ -49,10 +49,10 @@ bool my_guidedFilter_oneChannel(Mat &srcImg, Mat &guideImg, Mat &dstImg, const i
 //参数：const int rad：滤波器大小，应该保证为奇数，默认值为9；
 //参数：const double eps ：防止a过大的正则化参数，
 
-bool my_guidedFilter_threeChannel(Mat &srcImg, Mat &guideImg, Mat &dstImg, const int rad = 9, const double eps = 0.01)
+bool my_guidedFilter_threeChannel(Mat &srcImg, Mat &guideImg, Mat &dstImg, int rad = 9,  double eps = 0.01)
 {
     //----------------确保输入参数正确-------------
-
+    if(!(rad & 1)) rad++;
     vector<Mat> src_vec, guide_vec,dst_vec;
     split(srcImg, src_vec);
     split(guideImg, guide_vec);

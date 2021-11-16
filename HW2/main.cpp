@@ -131,11 +131,88 @@ void GuassianFilter(cv::Mat frame){
         cv::imshow("GuassianFilter",changed);
     }
 }
-void GuassianFilter_Naive(cv::Mat frame, int size){
-    cv::namedWindow("GuassianFilterNaive",cv::WINDOW_NORMAL);
-    cv::resizeWindow("GuassianFilterNaive",cv::Size(frame.rows, frame.cols+50));
 
+void GaussianFilter(const cv::Mat &src, cv::Mat &dst, int ksize, double sigma)
+{
+    CV_Assert(src.channels() || src.channels() == 3);
+    const static double pi = 3.1415926;
+    // 根据窗口大小和sigma生成高斯滤波器模板
+    // 申请一个二维数组，存放生成的高斯模板矩阵
+    double **templateMatrix = new double*[ksize];
+    for (int i = 0; i < ksize; i++)
+        templateMatrix[i] = new double[ksize];
+    int origin = ksize / 2; // 以模板的中心为原点
+    double x2, y2;
+    double sum = 0;
+    for (int i = 0; i < ksize; i++)
+    {
+        x2 = pow(i - origin, 2);
+        for (int j = 0; j < ksize; j++)
+        {
+            y2 = pow(j - origin, 2);
+            // 高斯函数前的常数可以不用计算，会在归一化的过程中给消去
+            double g = exp(-(x2 + y2) / (2 * sigma * sigma));
+            sum += g;
+            templateMatrix[i][j] = g;
+        }
+    }
+    for (int i = 0; i < ksize; i++)
+    {
+        for (int j = 0; j < ksize; j++)
+        {
+            templateMatrix[i][j] /= sum;
+            std::cout << templateMatrix[i][j] << " ";
+        }
+        std::cout << std::endl;
+    }
+    // 将模板应用到图像中
+    int border = ksize / 2;
+    copyMakeBorder(src, dst, border, border, border, border, cv::BorderTypes::BORDER_REFLECT);
+    int channels = dst.channels();
+    int rows = dst.rows - border;
+    int cols = dst.cols - border;
+    for (int i = border; i < rows; i++)
+    {
+        for (int j = border; j < cols; j++)
+        {
+            double sum[3] = { 0 };
+            for (int a = -border; a <= border; a++)
+            {
+                for (int b = -border; b <= border; b++)
+                {
+                    if (channels == 1)
+                    {
+                        sum[0] += templateMatrix[border + a][border + b] * dst.at<uchar>(i + a, j + b);
+                    }
+                    else if (channels == 3)
+                    {
+                        cv::Vec3b rgb = dst.at<cv::Vec3b>(i + a, j + b);
+                        auto k = templateMatrix[border + a][border + b];
+                        sum[0] += k * rgb[0];
+                        sum[1] += k * rgb[1];
+                        sum[2] += k * rgb[2];
+                    }
+                }
+            }
+            for (int k = 0; k < channels; k++)
+            {
+                if (sum[k] < 0)
+                    sum[k] = 0;
+                else if (sum[k] > 255)
+                    sum[k] = 255;
+            }
+            if (channels == 1)
+                dst.at<uchar>(i, j) = static_cast<uchar>(sum[0]);
+            else if (channels == 3)
+            {
+                cv::Vec3b rgb = { static_cast<uchar>(sum[0]), static_cast<uchar>(sum[1]), static_cast<uchar>(sum[2]) };
+                dst.at<cv::Vec3b>(i, j) = rgb;
+            }
+        }
+    }
 }
+
+
 void BilateralFilter(cv::Mat frame){
     cv::namedWindow("BilateralFilter",cv::WINDOW_GUI_NORMAL);
     cv::resizeWindow("BilateralFilter",cv::Size(frame.rows, frame.cols+100));
@@ -168,9 +245,12 @@ bool my_guidedFilter_threeChannel(cv::Mat &srcImg, cv::Mat &guideImg, cv::Mat &d
 int main() {
 
     cv::String path = "C:\\Users\\jc\\Desktop\\pycharmprojects\\Assignments_DigitalMediaComputing\\img.jpg";
+    cv::String path1 = "C:\\Users\\jc\\Desktop\\Assignments_DigitalMediaComputing\\HW2\\wei.jpg";
     cv::Mat origin_img = cv::imread(path);
+    cv::Mat guidedimg = cv::imread(path1);
+    //cv::resize(guidedimg,guidedimg,cv::Size(origin_img.rows, origin_img.cols));
     cv::Mat frame = origin_img.clone();
-    cv::Mat changed;
+    cv::Mat changed = origin_img.clone();
 //    std::thread BoxThread(BoxFilter,frame), MedianThread(MedianFilter,frame),GuassianThread(GuassianFilter,frame),
 //                BilateralThreaad(BilateralFilter,frame);
 //    BoxThread.join();
@@ -179,9 +259,18 @@ int main() {
 //    BilateralThreaad.join();
 //    BoxFilter_Naive(frame,5);
 //    MedianFilterNaive(frame,5);
-    my_guidedFilter_threeChannel(frame,frame,changed);
-    cv::imshow("dsa",changed);
-    cv::waitKey(0);
+    int init = 1;
+    cv::namedWindow("guidedfilter");
+    cv::createTrackbar("size","guidedfilter",&init,100);
+    cv::createTrackbar("regularation","guidedfilter",&init,100);
+    while(true){
+        if(cv::waitKey(1) == 'q') break;
+        int size = cv::getTrackbarPos("size","guidedfilter");
+        double eps = 1.0 / cv::getTrackbarPos("regularation","guidedfilter") ;
+        my_guidedFilter_threeChannel(frame,guidedimg,changed,size,eps);
+        cv::imshow("guidedfilter",changed);
+    }
+
     return 0;
 
 //    single_thread head^ version
