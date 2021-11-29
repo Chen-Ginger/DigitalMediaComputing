@@ -14,76 +14,79 @@ import cv2 as cv
 
 from matplotlib import pyplot as plt
 
-imageA = cv.imread('1.jpg')
 
-imageB = cv.imread('2.jpg')
+if __name__ == "__main__":
 
-grayA = cv.cvtColor(imageA, cv.COLOR_BGR2GRAY)
+    imageA = cv.imread('1.jpg')
 
-cv.imshow("grayA", grayA)
+    imageB = cv.imread('2.jpg')
 
-grayB = cv.cvtColor(imageB, cv.COLOR_BGR2GRAY)
+    grayA = cv.cvtColor(imageA, cv.COLOR_BGR2GRAY)
 
-cv.imshow("grayB", grayB)
+    cv.imshow("grayA", grayA)
 
-min_hessian = 1000
+    grayB = cv.cvtColor(imageB, cv.COLOR_BGR2GRAY)
 
-sift = cv.SIFT_create(min_hessian)
+    cv.imshow("grayB", grayB)
 
-keypointsA, featuresA = sift.detectAndCompute(grayA,None)
+    min_hessian = 1000
 
-keypointsB, featuresB = sift.detectAndCompute(grayB,None)
+    sift = cv.SIFT_create(min_hessian)
 
-kpImgA=cv.drawKeypoints(grayA,keypointsA,imageA)
+    keypointsA, featuresA = sift.detectAndCompute(grayA,None)
 
-kpImgB=cv.drawKeypoints(grayB,keypointsB,imageB)
+    keypointsB, featuresB = sift.detectAndCompute(grayB,None)
 
-cv.imshow("kpImgA", kpImgA)
+    kpImgA=cv.drawKeypoints(grayA,keypointsA,imageA)
 
-cv.imshow("kpImgB", kpImgB)
+    kpImgB=cv.drawKeypoints(grayB,keypointsB,imageB)
 
-FLANN_INDEX_KDTREE = 0
+    cv.imshow("kpImgA", kpImgA)
 
-index_params = dict(algorithm = FLANN_INDEX_KDTREE, trees = 5)
+    cv.imshow("kpImgB", kpImgB)
 
-search_params = dict(checks=50)
+    FLANN_INDEX_KDTREE = 0
 
-# 使用FlannBasedMatcher 寻找最近邻近似匹配
+    index_params = dict(algorithm = FLANN_INDEX_KDTREE, trees = 5)
 
-flann = cv.FlannBasedMatcher(index_params,search_params)
+    search_params = dict(checks=50)
 
-# 使用knnMatch匹配处理，并返回匹配matches
+    # 使用FlannBasedMatcher 寻找最近邻近似匹配
 
-matches = flann.knnMatch(featuresA, featuresB, k=2)
+    flann = cv.FlannBasedMatcher(index_params,search_params)
 
-matchesMask = [[0,0] for i in range(len(matches))]
+    # 使用knnMatch匹配处理，并返回匹配matches
 
-coff = 0.8 # 0.1 0.7  0.8
+    matches = flann.knnMatch(featuresA, featuresB, k=2)
 
-for i,(m,n) in enumerate(matches):
+    matchesMask = [[0,0] for i in range(len(matches))]
 
-    if m.distance < coff * n.distance:
+    coff = 0.8 # 0.1 0.7  0.8
 
-        matchesMask[i]=[1,0]
+    for i,(m,n) in enumerate(matches):
 
-draw_params = dict(matchColor = (0,0,255),
+        if m.distance < coff * n.distance:
 
-                   singlePointColor = (0,0,255),
+            matchesMask[i]=[1,0]
 
-                   matchesMask = matchesMask,
+    draw_params = dict(matchColor = (0,0,255),
 
-                   flags = 0)
+                       singlePointColor = (0,0,255),
 
-resultImg = cv.drawMatchesKnn(grayA, keypointsA, grayB,keypointsB, matches,None,**draw_params)
+                       matchesMask = matchesMask,
 
-resultImg1 = cv.drawMatchesKnn(imageA, keypointsA, imageB,keypointsB, matches,None,**draw_params)
+                       flags = 0)
+
+    resultImg = cv.drawMatchesKnn(grayA, keypointsA, grayB,keypointsB, matches,None,**draw_params)
+
+    resultImg1 = cv.drawMatchesKnn(imageA, keypointsA, imageB,keypointsB, matches,None,**draw_params)
 
 
 
-cv.imshow("resultImg", resultImg)
+    cv.imshow("resultImg", resultImg)
 
-cv.imshow("resultImg_gray", resultImg1)
+    cv.imshow("resultImg_gray", resultImg1)
 
-cv.waitKey(0)
+    cv.waitKey(0)
 
-cv.destroyAllWindows()
+    cv.destroyAllWindows()
