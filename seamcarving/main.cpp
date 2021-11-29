@@ -1,268 +1,400 @@
-#include <iostream>
-#include <opencv2/opencv.hpp>
-#include <algorithm>
-using namespace cv;
-using namespace std;
+#include "seamcarving.h"
 
-class SeamCarver {
-    Mat_<Vec3b> image;
-    Mat_<Vec3b> duplicate;
-    Mat energy;
 
-    //Compute the full energy matrix by scanning the whole image
-    void computeFullEnergy();
 
-    //Compute the energy function only for the pixels affected by seam-removal
-    void computeEnergyAfterSeamRemoval(vector<uint> seam);
-
-public:
-    SeamCarver(Mat_<Vec3b> im) {
-        image = im;
-        duplicate = image;
-        energy = Mat(image.rows, image.cols, CV_32S, Scalar(195075));
-        computeFullEnergy();
-    }
-
-    virtual ~SeamCarver() {
-        duplicate.release();
-        energy.release();
-    }
-
-    //Show the image
-    void showImage() {
-        imshow("Image", image);
-    }
-
-    //Show the energy matrix as an image
-    void showEnergy() {
-        imshow("Energy", energy);
-    }
-
-    //Return the image
-    Mat_<Vec3b> getImage() {
-        return image;
-    }
-
-    //Return the value of the energy at a particular pixel
-    unsigned int getEnergy(unsigned int row, unsigned int col) {
-        return energy.at<uint32_t>(row, col);
-    }
-
-    //Find the optimal seams
-    vector<uint> findVerticalSeam();
-    vector<uint> findHorizontalSeam();
-
-    //Remove a given seam and update the image
-    void removeVerticalSeam(vector<uint> seam);
-    void removeHorizontalSeam(vector<uint> seam);
-
-    //Display a given seam
-    void showVerticalSeam(vector<uint> seam);
-    void showHorizontalSeam(vector<uint> seam);
-};
-void SeamCarver::showVerticalSeam(vector<uint> seam) {
-    Mat tmp;
-    image.copyTo(tmp);
-    for (int i = 0; i < tmp.rows; ++i)
-        tmp.at<Vec3b>(i, seam[i]) = Vec3b(0, 0, 255);	//Set the color of the seam to Red
-    imshow("Seam", tmp);
-    tmp.release();
+int which_min2(float x, float y)
+{
+    return x < y ? 0 : 1;
 }
 
-void SeamCarver::showHorizontalSeam(vector<uint> seam) {
-    Mat tmp;
-    image.copyTo(tmp);
-    for (int i = 0; i < tmp.cols; ++i)
-        tmp.at<Vec3b>(seam[i], i) = Vec3b(0, 0, 255);	//Set the color of the seam to Red
-    imshow("Seam", tmp);
-    tmp.release();
-}
-
-void SeamCarver::computeFullEnergy() {
-    //Ensure that the size of the energy matrix matches that of the image
-    energy.create(image.rows, image.cols, CV_32S);
-
-    //Scan through the image and update the energy values. Ignore boundary pixels.
-    for (int i = 1; i < image.rows-1; ++i) {
-        uchar* prev = image.ptr<uchar>(i-1);	//Pointer to previous row
-        uchar* curr = image.ptr<uchar>(i);		//Pointer to current row
-        uchar* next = image.ptr<uchar>(i+1);	//Pointer to next row
-
-        for (int j = 1; j < image.cols-1; ++j) {
-            int val = 0;
-            //Energy along the x-axis
-            val += (prev[3*j]-next[3*j]) * (prev[3*j]-next[3*j]);
-            val += (prev[3*j+1]-next[3*j+1]) * (prev[3*j+1]-next[3*j+1]);
-            val += (prev[3*j+2]-next[3*j+2]) * (prev[3*j+2]-next[3*j+2]);
-
-            //Energy along the y-axis
-            val += (curr[3*j+3]-curr[3*j-3]) * (curr[3*j+3]-curr[3*j-3]);
-            val += (curr[3*j+4]-curr[3*j-2]) * (curr[3*j+4]-curr[3*j-2]);
-            val += (curr[3*j+5]-curr[3*j-1]) * (curr[3*j+5]-curr[3*j-1]);
-
-            energy.at<uint32_t>(i, j) = val;
+int which_min3(float x, float y, float z)
+{
+    int min_id = -1;
+    float min_value = 9999;
+    float values[3] = { x,y,z };
+    for (int i = 0; i < 3; i++) {
+        if (values[i] < min_value) {
+            min_value = values[i];
+            min_id = i;
         }
     }
+    return min_id;
 }
 
-void SeamCarver::computeEnergyAfterSeamRemoval(vector<uint> seam) {
-    Mat tmp = Mat(image.rows, image.cols, CV_32S, Scalar(195075));
-    for (unsigned int row = 0; row < (uint)image.rows; ++row) {
-        for (unsigned int col = 0; col < (uint)image.cols; ++col) {
-            if (col < seam[row]-1)	tmp.at<uint32_t>(row, col) = energy.at<uint32_t>(row, col);
-            if (col > seam[row])	tmp.at<uint32_t>(row, col) = energy.at<uint32_t>(row, col+1);
-            if (col == seam[row] || col == seam[row]-1) {
-                Vec3b l = image.at<Vec3b>(row, col-1);
-                Vec3b r = image.at<Vec3b>(row, col+1);
-                Vec3b u = image.at<Vec3b>(row-1, col);
-                Vec3b d = image.at<Vec3b>(row+1, col);
-                int val = (l[0]-r[0])*(l[0]-r[0]) + (l[1]-r[1])*(l[1]-r[1]) + (l[2]-r[2])*(l[2]-r[2]) +
-                          (u[0]-d[0])*(u[0]-d[0]) + (u[1]-d[1])*(u[1]-d[1]) + (u[2]-d[2])*(u[2]-d[2]);
-                tmp.at<uint32_t>(row, col) = val;
+void calc_energy(cv::Mat & image, cv::Mat &original_energy)
+{
+
+    Mat dx, dy,abs_dx,abs_dy, gray;
+    cvtColor(image, gray, cv::COLOR_BGR2GRAY);
+
+    Sobel(gray, dx, CV_64F, 1, 0);
+    Sobel(gray, dy, CV_64F, 0, 1);
+
+    convertScaleAbs(dx, abs_dx);
+    convertScaleAbs(dy, abs_dy);
+    addWeighted(abs_dx, 0.5, abs_dy, 0.5, 0, original_energy);
+    original_energy.convertTo(original_energy, CV_8UC1);
+
+
+    //初始能量图
+    namedWindow("grad", cv::WINDOW_NORMAL);
+    imshow("grad", original_energy);
+    waitKey(1);
+
+
+    //Mat dx, dy;
+    //Sobel(image, dx, CV_64F, 1, 0);
+    //Sobel(image, dy, CV_64F, 0, 1);
+    //magnitude(dx, dy, output);
+
+    //double min_value, max_value, Z;
+    //minMaxLoc(output, &min_value, &max_value);
+    //Z = 1 / max_value * 255;
+    //output = output * Z;                    //normalize
+    //output.convertTo(output, CV_8U);
+}
+
+void calc_cumulative_energy(cv::Mat &original_energy, std::vector<node> &table)
+{
+    int rows = original_energy.rows;
+    int cols = original_energy.cols;
+    for (int i = 0; i < rows; i++) {
+        for (int j = 0; j < cols; j++) {
+            int id = -1;
+            if (i == 0) {
+                table[i*cols + j].value = original_energy.at<uchar>(i, j);
+                table[i*cols + j].path = -6;
+            }
+            else {
+                if (j == 0) {
+                    id = which_min2(original_energy.at<uchar>(i-1, j), original_energy.at<uchar>(i-1, j+1));
+                    table[i*cols + j].value = original_energy.at<uchar>(i, j) + original_energy.at<uchar>(i - 1, j+id);
+                    table[i*cols + j].path = id+1;
+                }
+                else if (j == cols - 1) {
+                    id= which_min2(original_energy.at<uchar>(i-1,j-1), original_energy.at<uchar>(i - 1, j ));
+                    table[i*cols + j].value = original_energy.at<uchar>(i, j) + original_energy.at<uchar>(i-1, j-1+id);
+                    table[i*cols + j].path = id;
+                }
+                else {
+                    id = which_min3(original_energy.at<uchar>(i - 1, j - 1), original_energy.at<uchar>(i - 1, j), original_energy.at<uchar>(i - 1, j + 1));
+                    table[i*cols + j].value = original_energy.at<uchar>(i, j) + original_energy.at<uchar>(i - 1, j - 1 + id);
+                    table[i*cols + j].path = id;
+                }
             }
         }
     }
-    energy = tmp;
 }
 
-vector<uint> SeamCarver::findVerticalSeam() {
-    vector<uint> seam(image.rows);
-    unsigned int distTo[image.rows][image.cols];	//Save the shortest distance from any of the top pixels
-    short edgeTo[image.rows][image.cols];			//Which of the the three top pixels, the shortest path came from
-
-    //Initialize the distance and edge matrices
-    for (int i = 0; i < image.rows; ++i) {
-        for (int j = 0; j < image.cols; ++j) {
-            if (i == 0)		distTo[i][j] = 0;
-            else			distTo[i][j] = numeric_limits<unsigned int>::max();
-            edgeTo[i][j] = 0;
-        }
-    }
-
-    // Relax the edges in topological order
-    for (int row = 0; row < image.rows-1; ++row) {
-        for (int col = 0; col < image.cols; ++col) {
-            //Check the pixel to the bottom-left
-            if (col != 0)
-                if (distTo[row+1][col-1] > distTo[row][col] + getEnergy(row+1, col-1)) {
-                    distTo[row+1][col-1] = distTo[row][col] + getEnergy(row+1, col-1);
-                    edgeTo[row+1][col-1] = 1;
-                }
-            //Check the pixel right below
-            if (distTo[row+1][col] > distTo[row][col] + getEnergy(row+1, col)) {
-                distTo[row+1][col] = distTo[row][col] + getEnergy(row+1, col);
-                edgeTo[row+1][col] = 0;
-            }
-            //Check the pixel to the bottom-right
-            if (col != image.cols-1)
-                if (distTo[row+1][col+1] > distTo[row][col] + getEnergy(row+1, col+1)) {
-                    distTo[row+1][col+1] = distTo[row][col] + getEnergy(row+1, col+1);
-                    edgeTo[row+1][col+1] = -1;
-                }
-        }
-    }
-
-    //Find the bottom of the min-path
-    unsigned int min_index = 0, min = distTo[image.rows-1][0];
-    for (int i = 1; i < image.cols; ++i)
-        if (distTo[image.rows-1][i] < min) {
+void find_seam(std::vector<node>& table,std::vector<int> &path, int w, int h)
+{
+    //path size is h-1
+    int min_index;
+    float min_energy = 999999;
+    for (int i = 0; i < w; i++) {
+        if (table[(h - 1)*w + i].value < min_energy) {
             min_index = i;
-            min = distTo[image.rows-1][i];
+            min_energy = table[(h - 1)*w + i].value;
         }
-
-    //Retrace the min-path and update the 'seam' vector
-    seam[image.rows-1] = min_index;
-    for (int i = image.rows-1; i > 0; --i)
-        seam[i-1] = seam[i] + edgeTo[i][seam[i]];
-
-    return seam;
-}
-
-void SeamCarver::removeVerticalSeam(vector<uint> seam) {
-    //Move all the pixels to the right of the seam, one pixel to the left
-    for (int row = 0; row < image.rows; ++row) {
-        for (int col = seam[row]; col < image.cols-1; ++col)
-            image.at<Vec3b>(row, col) = image.at<Vec3b>(row, col+1);
     }
 
-    //Resize the image to remove the last column
-    image = image(Rect(0, 0, image.cols-1, image.rows));
+    int tmp_id;
+    int count = 0;
+    path[h - 1] = min_index;
+    tmp_id = min_index;
+    for (int i = h - 1; i >0; i--) {
+        tmp_id = table[i*w + tmp_id].path - 1 + tmp_id;
+        path[i - 1] = tmp_id;
+    }
 
-    //Re-compute the energy of the new image
-    computeFullEnergy();
-//	computeEnergyAfterSeamRemoval(seam);
 }
 
-vector<uint> SeamCarver::findHorizontalSeam() {
-    vector<uint> seam(image.cols);
-    //Transpose the matrices and find the vertical seam
-    transpose(image, image);
-    transpose(energy, energy);
-    seam = findVerticalSeam();
+void remove_seam(cv::Mat & image, std::vector<int> &path, cv::Mat & out)
+{
+    cv::Mat tmp = image.clone();
+    for (int i = 0; i < image.rows; i++) {
+        Vec3b values(0, 0, 255);
+        tmp.at<Vec3b>(i, path[i]) = values;
+    }
+    namedWindow("seam");
+    imshow("seam", tmp);
+    waitKey(1);
 
-    //Transpose back
-    transpose(image, image);
-    transpose(energy, energy);
-    return seam;
+//    std::cout<<path.size()<<std::endl;
+//    std::cout<<image.rows<<std::endl;
+    for (int r = 0; r < image.rows; r++) {
+        for (int c = 0; c < image.cols-1; c++) {
+            if (c >= path[r] )
+                out.at<Vec3b>(r, c) = image.at<Vec3b>(r, c + 1);
+            else
+                out.at<Vec3b>(r, c) = image.at<Vec3b>(r, c);
+        }
+    }
 }
 
-void SeamCarver::removeHorizontalSeam(vector<uint> seam) {
-    //Transpose the matrices and remove the vertical seam
-    transpose(image, image);
-    transpose(energy, energy);
-    removeVerticalSeam(seam);
+void seam_carving_single(cv::Mat & image, cv::Mat & output, int direction)
+{
+    //0 horizontal
+    //1 vertical
+    if (direction == 0) {
+        transpose(image, image);
+        flip(image, image, 1); //transpose+flip(1)=CW
 
-    //Transpose back
-    transpose(image, image);
-    transpose(energy, energy);
+        //cv::namedWindow("trans", CV_WINDOW_NORMAL);
+        //cv::imshow("trans", image);
+        //cv::waitKey();
+    }
+
+
+    cv::Mat energy;
+
+    int cols = image.cols;
+    int rows = image.rows;
+    cv::Mat tmpout(rows, cols-1, CV_8UC3);
+    std::vector<node> table(cols*rows);
+    std::vector<int> seam(rows);
+
+    calc_energy(image, energy);
+    calc_cumulative_energy(energy, table);
+    find_seam(table, seam, cols, rows);
+    remove_seam(image, seam, tmpout);
+    output = tmpout.clone();
+
+    if (direction == 0) {
+        transpose(output, output);
+        flip(output, output, 1); //transpose+flip(0)=CCW
+        //cv::namedWindow("trans", CV_WINDOW_NORMAL);
+        //cv::imshow("trans", output);
+        //cv::waitKey();
+    }
+}
+
+int compute_seam_cost(std::vector<node>& table, cv::Size &size_, std::vector<int>& path,int type_)
+{
+    int cost = 0;
+    if (type_ == 0) {
+        for (int i = 0; i < size_.height; i++) {
+            cost += table[i*size_.width + path[i]].value;
+        }
+    }
+    else {
+        for (int i = 0; i < size_.width; i++) {
+            cost += table[i*size_.height + path[i]].value;
+        }
+    }
+
+    return cost;
+}
+
+
+
+void seamEngine(cv::Mat & image, cv::Mat & output, int reduce_col, int reduce_row)
+{
+    int count_w=0;
+    int count_h = 0;
+
+    cv::Mat input = image.clone();
+    cv::Size size_(image.cols, image.rows);
+
+    //two axis
+    while (count_h < reduce_row&&count_w < reduce_col) {
+        int cost_v = 0;
+        int cost_h = 0;
+        cv::Mat  energy;
+        calc_energy(input, energy);
+
+        //v
+        std::vector<node> table_v(size_.width*size_.height);
+        std::vector<int> seam_v(size_.height);
+        calc_cumulative_energy(energy, table_v);
+        find_seam(table_v, seam_v, size_.width, size_.height);
+        //cost_v = compute_seam_cost(table_v, size_, seam_v,0);
+        for (int i = 0; i < size_.height; i++) {
+            cost_v += table_v[i*size_.width + seam_v[i]].value;
+        }
+
+        //h
+        std::vector<node> table_h(size_.width*size_.height);
+        std::vector<int> seam_h(size_.width);
+        transpose(energy,energy);
+        flip(energy, energy, 1);
+        calc_cumulative_energy(energy, table_h);
+        find_seam(table_h, seam_h, size_.height, size_.width);
+        //cost_h = compute_seam_cost(table_h, size_, seam_h,1);
+        for (int i = 0; i < size_.width; i++) {
+            cost_h += table_h[i*size_.height+ seam_h[i]].value;
+        }
+
+        if (cost_v < cost_h) {
+            cv::Mat tmp(size_.height, size_.width - 1, CV_8UC3);
+            remove_seam(input, seam_v, tmp);
+            tmp.copyTo(input);
+            size_.width-=1;
+            count_w+=1;
+        }
+        else {
+            cv::Mat tmp(size_.width, size_.height - 1, CV_8UC3);
+            transpose(input, input);
+            flip(input, input, 1);
+            remove_seam(input, seam_h, tmp);
+            transpose(tmp, tmp);
+            flip(tmp, tmp, 1);
+            tmp.copyTo(input);
+            size_.height-=1;
+            count_h+=1;
+        }
+    }
+
+
+    while (count_h < reduce_row) {
+        cv::Mat  energy;
+        cv::Mat tmp(size_.width, size_.height - 1, CV_8UC3);
+        transpose(input, input);
+        flip(input, input, 1);
+        calc_energy(input, energy);
+
+        std::vector<node> table_h(size_.width*size_.height);
+        std::vector<int> seam_h(size_.width);
+        calc_cumulative_energy(energy, table_h);
+        find_seam(table_h, seam_h, size_.height, size_.width);
+        remove_seam(input, seam_h, tmp);
+        transpose(tmp, tmp);
+        flip(tmp, tmp, 1);
+        tmp.copyTo(input);
+        size_.height -= 1;
+        count_h += 1;
+    }
+
+
+    while (count_w < reduce_col) {
+        cv::Mat  energy;
+        cv::Mat tmp(size_.height, size_.width - 1, CV_8UC3);
+        calc_energy(input, energy);
+
+        std::vector<node> table_v(size_.width*size_.height);
+        std::vector<int> seam_v(size_.height);
+        calc_cumulative_energy(energy, table_v);
+        find_seam(table_v, seam_v, size_.width, size_.height);
+        remove_seam(input, seam_v, tmp);
+        tmp.copyTo(input);
+        size_.width -= 1;
+        count_w += 1;
+    }
+
+    output = input;
+}
+
+void seamEngine(cv::Mat & image, cv::Mat & output, float scale_w, float scale_h)
+{
+    int reduce_col,  reduce_row;
+    int image_rows = image.rows;
+    int image_cols = image.cols;
+    reduce_row = image_rows - image_rows*scale_h;
+    reduce_col = image_cols - image_cols*scale_w;
+
+    int count_w = 0;
+    int count_h = 0;
+
+    cv::Mat input = image.clone();
+    cv::Size size_(image.cols, image.rows);
+
+    //two axis
+    while (count_h < reduce_row&&count_w < reduce_col) {
+        int cost_v = 0;
+        int cost_h = 0;
+        cv::Mat  energy;
+
+
+        calc_energy(input, energy);
+
+        //v
+        std::vector<node> table_v(size_.width*size_.height);
+        std::vector<int> seam_v(size_.height);
+        calc_cumulative_energy(energy, table_v);
+        find_seam(table_v, seam_v, size_.width, size_.height);
+        //cost_v = compute_seam_cost(table_v, size_, seam_v,0);
+        for (int i = 0; i < size_.height; i++) {
+            cost_v += table_v[i*size_.width + seam_v[i]].value;
+        }
+
+        //h
+        std::vector<node> table_h(size_.width*size_.height);
+        std::vector<int> seam_h(size_.width);
+        transpose(energy, energy);
+        flip(energy, energy, 1);
+        calc_cumulative_energy(energy, table_h);
+        find_seam(table_h, seam_h, size_.height, size_.width);
+        //cost_h = compute_seam_cost(table_h, size_, seam_h,1);
+        for (int i = 0; i < size_.width; i++) {
+            cost_h += table_h[i*size_.height + seam_h[i]].value;
+        }
+
+        if (cost_v < cost_h) {
+            cv::Mat tmp(size_.height, size_.width - 1, CV_8UC3);
+            remove_seam(input, seam_v, tmp);
+            tmp.copyTo(input);
+            size_.width -= 1;
+            count_w += 1;
+        }
+        else {
+            cv::Mat tmp(size_.width, size_.height - 1, CV_8UC3);
+            transpose(input, input);
+            flip(input, input, 1);
+            remove_seam(input, seam_h, tmp);
+            transpose(tmp, tmp);
+            flip(tmp, tmp, 1);
+            tmp.copyTo(input);
+            size_.height -= 1;
+            count_h += 1;
+        }
+    }
+
+    //水平方向
+    while (count_h < reduce_row) {
+        cv::Mat  energy;
+        cv::Mat tmp(size_.width, size_.height - 1, CV_8UC3);
+        transpose(input, input);
+        flip(input, input, 1);
+        calc_energy(input, energy);
+
+        std::vector<node> table_h(size_.width*size_.height);
+        std::vector<int> seam_h(size_.width);
+        calc_cumulative_energy(energy, table_h);
+        find_seam(table_h, seam_h, size_.height, size_.width);
+        remove_seam(input, seam_h, tmp);
+        transpose(tmp, tmp);
+        flip(tmp, tmp, 1);
+        tmp.copyTo(input);
+        size_.height -= 1;
+        count_h += 1;
+    }
+
+    //竖直方向
+    while (count_w < reduce_col) {
+        cv::Mat  energy;
+        cv::Mat tmp(size_.height, size_.width - 1, CV_8UC3);
+        calc_energy(input, energy);
+
+        std::vector<node> table_v(size_.width*size_.height);
+        std::vector<int> seam_v(size_.height);
+        calc_cumulative_energy(energy, table_v);
+        find_seam(table_v, seam_v, size_.width, size_.height);
+        remove_seam(input, seam_v, tmp);
+        tmp.copyTo(input);
+        size_.width -= 1;
+        count_w += 1;
+    }
+
+    output = input;
 }
 int main() {
-//	Mat_<Vec3b> image = imread("surfing.png");
-//	Mat_<Vec3b> image = imread("pic2.png");
-    Mat_<Vec3b> image = imread("C:\\Users\\jc\\Desktop\\Assignments_DigitalMediaComputing\\DEHAZE\\an.png");
-//	Mat_<Vec3b> image = imread("lighthouse.jpg");
-//	Mat_<Vec3b> image = imread("bench.jpg");
-    if (!image.data) {
-        cout << "Invalid input";
-        image.release();
-        return -1;
-    }
 
-    imshow("Original Image", image);
-    SeamCarver s(image);
-//	imshow("Gradient", s.energy);
-//	Mat tmp = s.energy/195075.0*255.0;
-//	s.energy.convertTo(tmp,CV_8U,-1);
-//	imwrite("bench_gradient.jpg", tmp);
-//	vector<uint> sm = s.findVerticalSeam();
-//	s.showVerticalSeam(sm);
-
-    for (int i = 0; i < 160; ++i) {
-        vector<uint> seam = s.findHorizontalSeam();
-//		s.showHorizontalSeam(seam);
-        s.removeHorizontalSeam(seam);
-    }
-    for (int i = 0; i < 150; ++i) {
-        vector<uint> seam = s.findVerticalSeam();
-//		s.showVerticalSeam(seam);
-        s.removeVerticalSeam(seam);
-    }
-//	imshow("Carved Image", s.getImage());
-
-    imshow("Carved Image", s.getImage());
-//	cout << "Seam Length: " << seam.size() << endl;
-//	s.showImage();
-//	s.showEnergy();
-    while (waitKey(20) != 27);
-
-//	imwrite("bench_carved.jpg", s.getImage());
-
-//	for (int i = 0; i < 5; ++i) {
-//		for (int j = 0; j < 5; ++j) {
-//			cout << s.energy.at<uint32_t>(i,j) << " ";
-//		}
-//		cout << endl;
-//	}
-    image.release();
+    cv::String path =  "C:\\Users\\jc\\Desktop\\Assignments_DigitalMediaComputing\\seamcarving\\1.jpg";
+    cv::Mat image = imread(path);
+    cv::Mat out;
+    seamEngine(image, out, 200,0);
+    //cv::imwrite("1_result.jpg", out);
+    cv::imshow("seamcarving", out);
+    cv::waitKey(0);
     return 0;
 }

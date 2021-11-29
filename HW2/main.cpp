@@ -267,7 +267,7 @@ int main() {
         if(cv::waitKey(1) == 'q') break;
         int size = cv::getTrackbarPos("size","guidedfilter");
         double eps = 1.0 / cv::getTrackbarPos("regularation","guidedfilter") ;
-        my_guidedFilter_threeChannel(frame,guidedimg,changed,size,eps);
+        my_guidedFilter_threeChannel(frame,frame,changed,size,eps);
         cv::imshow("guidedfilter",changed);
     }
 
