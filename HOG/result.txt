@@ -1,0 +1,15 @@
+1.jpg person
+10.jpg car
+11.jpg car
+12.jpg car
+13.jpg car
+14.jpg person
+15.jpg person
+2.jpg person
+3.jpg person
+4.jpg person
+5.jpg person
+6.jpg car
+7.jpg car
+8.jpg car
+9.jpg person
