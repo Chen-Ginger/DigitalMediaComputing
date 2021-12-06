@@ -8,15 +8,16 @@
 
 # @Software: PyCharm
 
+
 import torch
 import torch.nn as nn
 import torchvision
 import torchvision.transforms as transforms
 
 if torch.cuda.is_available():
-    print("cuda")
+    print("cuda ")
 else:
-    print("CPU")
+    print("CPU ")
 # 判断是否有GPU
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
